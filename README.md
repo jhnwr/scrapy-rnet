@@ -67,11 +67,27 @@ Full list of available profiles: [rnet docs](https://rnet.readthedocs.io/en/late
 
 ### Proxies
 
+**Global proxy** (all requests):
+
 ```python
 import rnet
 
-RNET_PROXIES = [rnet.Proxy.http("http://user:pass@proxy.example.com:8080")]
+RNET_PROXIES = [rnet.Proxy.all("http://proxy.example.com:8080")]
 ```
+
+**Per-request proxy** via `request.meta['proxy']`:
+
+```python
+yield scrapy.Request(url, meta={"proxy": "http://user:pass@proxy.example.com:8080"})
+```
+
+> **Important:** Scrapy's built-in `HttpProxyMiddleware` strips credentials from the proxy URL before the download handler sees the request. Since rnet manages proxy auth internally, you must disable it:
+>
+> ```python
+> DOWNLOADER_MIDDLEWARES = {
+>     "scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware": None,
+> }
+> ```
 
 ## How it works
 

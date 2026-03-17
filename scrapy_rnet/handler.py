@@ -8,6 +8,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 import rnet
 from scrapy.http import Headers
@@ -55,9 +56,24 @@ class RnetDownloadHandler:
         Verify TLS certificates. Defaults to ``True``.
 
     RNET_PROXIES : list[rnet.Proxy] or None
-        ``rnet.Proxy`` objects to pass to the client. When set, these take
-        precedence over Scrapy's proxy settings.
+        ``rnet.Proxy`` objects to pass to the client as the global default.
         Defaults to ``None``.
+
+    Per-request proxy via ``request.meta['proxy']``
+        A proxy URL string set on an individual request overrides ``RNET_PROXIES``
+        for that request only. Standard Scrapy format::
+
+            yield scrapy.Request(url, meta={"proxy": "http://user:pass@host:port"})
+
+        .. note::
+            Scrapy's built-in ``HttpProxyMiddleware`` strips credentials from the
+            proxy URL and replaces them with a ``Proxy-Authorization`` header before
+            the download handler sees the request. Because rnet manages proxy auth
+            internally, you must disable that middleware::
+
+                DOWNLOADER_MIDDLEWARES = {
+                    "scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware": None,
+                }
     """
 
     lazy = False
@@ -112,12 +128,25 @@ class RnetDownloadHandler:
         headers = self._scrapy_headers_to_dict(request.headers)
         body: bytes | None = request.body or None
 
+        request_kwargs: dict = dict(headers=headers, body=body)
+
+        # request.meta['proxy'] overrides the global RNET_PROXIES for this request
+        meta_proxy: str | None = request.meta.get("proxy")
+        if meta_proxy:
+            parsed = urlparse(meta_proxy)
+            proxy_url = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+            proxy_kwargs = {}
+            if parsed.username:
+                proxy_kwargs["username"] = parsed.username
+            if parsed.password:
+                proxy_kwargs["password"] = parsed.password
+            request_kwargs["proxy"] = rnet.Proxy.all(proxy_url, **proxy_kwargs)
+
         try:
             rnet_response = await self._client.request(
                 method,
                 request.url,
-                headers=headers,
-                body=body,
+                **request_kwargs,
             )
         except rnet.TimeoutError as exc:
             raise TimeoutError(f"rnet timed out: {request.url}") from exc
