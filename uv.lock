@@ -615,7 +615,7 @@ wheels = [
 ]
 
 [[package]]
-name = "scrapy-rnet"
+name = "scrapy-impersonate-rnet"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

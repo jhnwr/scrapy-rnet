@@ -106,7 +106,7 @@ class RnetDownloadHandler:
     # Download handler interface
     # ------------------------------------------------------------------
 
-    async def download_request(self, request: Request, spider) -> Response:
+    async def download_request(self, request: Request, spider=None) -> Response:
         """Fetch *request* via rnet and return a Scrapy ``Response``."""
         method = self._scrapy_method_to_rnet(request.method)
         headers = self._scrapy_headers_to_dict(request.headers)
