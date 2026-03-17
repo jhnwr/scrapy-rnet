@@ -55,9 +55,10 @@ class RnetDownloadHandler:
     RNET_VERIFY_SSL : bool
         Verify TLS certificates. Defaults to ``True``.
 
-    RNET_PROXIES : list[rnet.Proxy] or None
-        ``rnet.Proxy`` objects to pass to the client as the global default.
-        Defaults to ``None``.
+    RNET_PROXIES : list[str] or None
+        Proxy URL strings applied to every request, e.g.
+        ``["http://user:pass@host:port"]``. Credentials are parsed from the
+        URL automatically. Defaults to ``None``.
 
     Per-request proxy via ``request.meta['proxy']``
         A proxy URL string set on an individual request overrides ``RNET_PROXIES``
@@ -92,7 +93,11 @@ class RnetDownloadHandler:
         timeout = settings.getfloat("RNET_TIMEOUT", 30.0)
         follow_redirects = settings.getbool("RNET_FOLLOW_REDIRECTS", False)
         verify = settings.getbool("RNET_VERIFY_SSL", True)
-        proxies = settings.getlist("RNET_PROXIES", []) or None
+        proxies_raw = settings.getlist("RNET_PROXIES", []) or None
+        proxies = (
+            [self._parse_proxy(p) if isinstance(p, str) else p for p in proxies_raw]
+            if proxies_raw else None
+        )
 
         client_kwargs: dict = dict(
             timeout=int(timeout),
@@ -133,14 +138,7 @@ class RnetDownloadHandler:
         # request.meta['proxy'] overrides the global RNET_PROXIES for this request
         meta_proxy: str | None = request.meta.get("proxy")
         if meta_proxy:
-            parsed = urlparse(meta_proxy)
-            proxy_url = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
-            proxy_kwargs = {}
-            if parsed.username:
-                proxy_kwargs["username"] = parsed.username
-            if parsed.password:
-                proxy_kwargs["password"] = parsed.password
-            request_kwargs["proxy"] = rnet.Proxy.all(proxy_url, **proxy_kwargs)
+            request_kwargs["proxy"] = self._parse_proxy(meta_proxy)
 
         try:
             rnet_response = await self._client.request(
@@ -163,6 +161,23 @@ class RnetDownloadHandler:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_proxy(url: str) -> rnet.Proxy:
+        """Convert a proxy URL string to an ``rnet.Proxy`` object.
+
+        Credentials embedded in the URL (``http://user:pass@host:port``) are
+        extracted and passed as separate kwargs because rnet does not parse
+        userinfo from the URL itself.
+        """
+        parsed = urlparse(url)
+        proxy_url = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+        kwargs: dict = {}
+        if parsed.username:
+            kwargs["username"] = parsed.username
+        if parsed.password:
+            kwargs["password"] = parsed.password
+        return rnet.Proxy.all(proxy_url, **kwargs)
 
     @staticmethod
     def _scrapy_method_to_rnet(method: str) -> rnet.Method:

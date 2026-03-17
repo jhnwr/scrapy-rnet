@@ -326,6 +326,56 @@ class TestDownloadRequest:
         call_kwargs = mock_client.request.call_args.kwargs
         assert call_kwargs["headers"].get("X-Token") == "abc"
 
+    @pytest.mark.asyncio
+    async def test_meta_proxy_passed_to_request(self):
+        handler, mock_client = self._make_handler_with_mock_client()
+
+        req = Request("https://example.com/", meta={"proxy": "http://user:pass@proxy.example.com:8080"})
+        await handler.download_request(req, spider=None)
+
+        call_kwargs = mock_client.request.call_args.kwargs
+        assert isinstance(call_kwargs["proxy"], rnet.Proxy)
+
+    @pytest.mark.asyncio
+    async def test_no_proxy_key_without_meta_proxy(self):
+        handler, mock_client = self._make_handler_with_mock_client()
+
+        await handler.download_request(Request("https://example.com/"), spider=None)
+
+        call_kwargs = mock_client.request.call_args.kwargs
+        assert "proxy" not in call_kwargs
+
+
+# ---------------------------------------------------------------------------
+# _parse_proxy
+# ---------------------------------------------------------------------------
+
+class TestParseProxy:
+    def test_returns_proxy_object(self):
+        result = RnetDownloadHandler._parse_proxy("http://proxy.example.com:8080")
+        assert isinstance(result, rnet.Proxy)
+
+    def test_url_with_credentials(self):
+        # Should not raise — credentials are extracted from the URL
+        result = RnetDownloadHandler._parse_proxy("http://user:pass@proxy.example.com:8080")
+        assert isinstance(result, rnet.Proxy)
+
+    def test_rnet_proxies_strings_converted_at_init(self):
+        with patch("scrapy_rnet.handler.is_asyncio_reactor_installed", return_value=True):
+            with patch("rnet.Client") as mock_client:
+                RnetDownloadHandler(make_settings(
+                    RNET_PROXIES=["http://user:pass@proxy.example.com:8080"]
+                ))
+                proxies = mock_client.call_args.kwargs["proxies"]
+                assert len(proxies) == 1
+                assert isinstance(proxies[0], rnet.Proxy)
+
+    def test_rnet_proxies_empty_list_passes_none(self):
+        with patch("scrapy_rnet.handler.is_asyncio_reactor_installed", return_value=True):
+            with patch("rnet.Client") as mock_client:
+                RnetDownloadHandler(make_settings(RNET_PROXIES=[]))
+                assert "proxies" not in mock_client.call_args.kwargs
+
 
 # ---------------------------------------------------------------------------
 # Integration tests (real network)

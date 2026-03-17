@@ -70,9 +70,7 @@ Full list of available profiles: [rnet docs](https://rnet.readthedocs.io/en/late
 **Global proxy** (all requests):
 
 ```python
-import rnet
-
-RNET_PROXIES = [rnet.Proxy.all("http://proxy.example.com:8080")]
+RNET_PROXIES = ["http://user:pass@proxy.example.com:8080"]
 ```
 
 **Per-request proxy** via `request.meta['proxy']`:
