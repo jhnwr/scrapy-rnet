@@ -1,3 +1,3 @@
-from scrapy_rnet.middleware import RnetDownloadHandler
+from scrapy_rnet.handler import RnetDownloadHandler
 
 __all__ = ["RnetDownloadHandler"]

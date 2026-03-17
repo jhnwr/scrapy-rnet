@@ -21,7 +21,7 @@ import rnet
 from scrapy.http import HtmlResponse, Request, TextResponse
 from scrapy.settings import Settings
 
-from scrapy_rnet.middleware import RnetDownloadHandler
+from scrapy_rnet.handler import RnetDownloadHandler
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -41,7 +41,7 @@ def make_settings(**overrides) -> Settings:
 
 def make_handler(**setting_overrides) -> RnetDownloadHandler:
     """Instantiate a handler with the asyncio-reactor check patched out."""
-    with patch("scrapy_rnet.middleware.is_asyncio_reactor_installed", return_value=True):
+    with patch("scrapy_rnet.handler.is_asyncio_reactor_installed", return_value=True):
         return RnetDownloadHandler(make_settings(**setting_overrides))
 
 
@@ -232,7 +232,7 @@ class TestBuildScrapyResponse:
 
 class TestInit:
     def test_raises_without_asyncio_reactor(self):
-        with patch("scrapy_rnet.middleware.is_asyncio_reactor_installed", return_value=False):
+        with patch("scrapy_rnet.handler.is_asyncio_reactor_installed", return_value=False):
             with pytest.raises(RuntimeError, match="asyncio Twisted reactor"):
                 RnetDownloadHandler(make_settings())
 
@@ -241,14 +241,14 @@ class TestInit:
         assert handler._client is not None
 
     def test_impersonate_passed_to_client(self):
-        with patch("scrapy_rnet.middleware.is_asyncio_reactor_installed", return_value=True):
+        with patch("scrapy_rnet.handler.is_asyncio_reactor_installed", return_value=True):
             with patch("rnet.Client") as mock_client:
                 RnetDownloadHandler(make_settings(RNET_IMPERSONATE=rnet.Impersonate.Firefox133))
                 call_kwargs = mock_client.call_args.kwargs
                 assert call_kwargs["impersonate"] == rnet.Impersonate.Firefox133
 
     def test_custom_timeout_passed_to_client(self):
-        with patch("scrapy_rnet.middleware.is_asyncio_reactor_installed", return_value=True):
+        with patch("scrapy_rnet.handler.is_asyncio_reactor_installed", return_value=True):
             with patch("rnet.Client") as mock_client:
                 RnetDownloadHandler(make_settings(RNET_TIMEOUT=5.0))
                 call_kwargs = mock_client.call_args.kwargs
@@ -257,7 +257,7 @@ class TestInit:
     def test_from_crawler(self):
         crawler = MagicMock()
         crawler.settings = make_settings()
-        with patch("scrapy_rnet.middleware.is_asyncio_reactor_installed", return_value=True):
+        with patch("scrapy_rnet.handler.is_asyncio_reactor_installed", return_value=True):
             handler = RnetDownloadHandler.from_crawler(crawler)
         assert isinstance(handler, RnetDownloadHandler)
 
